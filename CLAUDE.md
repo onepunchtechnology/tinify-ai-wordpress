@@ -7,9 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 composer install          # install PHP deps (ActionScheduler + dev tools)
 composer test             # run PHPUnit with --testdox
-composer lint             # PHPCS against WordPress standard
-./vendor/bin/phpcbf --standard=phpcs.xml.dist src/   # auto-fix style
+./vendor/bin/phpcs --standard=phpcs.xml.dist src/ uninstall.php   # lint (use dist, not composer lint)
+./vendor/bin/phpcbf --standard=phpcs.xml.dist src/ uninstall.php  # auto-fix style
 ./vendor/bin/phpunit --filter TestClassName           # run one test class
+./vendor/bin/phpunit --filter 'TestClassName::test_method_name'   # run one test method
 ```
 
 PHP 8.1+ and Composer are required. There is no JS build step — `assets/` are plain JS/CSS.
@@ -27,12 +28,13 @@ PHP 8.1+ and Composer are required. There is no JS build step — `assets/` are 
 An image attachment flows through these stages, always in a background ActionScheduler job:
 
 ```
-Upload          → ApiClient::upload()         returns temp_file_id
-Process         → ApiClient::process()        returns job_id
-Poll            → ApiClient::pollJob()        blocks until status=completed (max 5 min)
+Upload          → ApiClient::upload()           returns temp_file_id
+Process         → ApiClient::process()          returns job_id
+Poll            → ApiClient::pollJob()          blocks until status=completed (max 5 min)
 Download        → ApiClient::downloadProcessedFile()
-Atomic swap     → Replacer::swap()            copy+rename, keeps .tinify-orig backup
-Save results    → MetaManager::saveResults()  writes 5 meta fields + status=completed
+Atomic swap     → Replacer::swap()              copy+rename, keeps .tinify-orig backup
+Save results    → MetaManager::saveResults()    writes 5 meta fields + status=completed
+Thumbnails      → Processor::optimizeThumbnails() compress-only, non-fatal, opt-in setting
 ```
 
 `Processor::run(int $attachmentId)` owns the pipeline. Upload retries 3 times before failing. A 429 from `process()` throws `InsufficientCreditsException`, which pauses all pending jobs and reschedules them for 5 minutes after the credits reset date (stored in a transient for the admin notice).
@@ -65,12 +67,12 @@ Pipeline options (output format, resize dimensions, resize behavior) are stored 
 
 ### Admin UI
 
-- **Settings page** (`/wp-admin/options-general.php?page=tinify-ai`): API key, auto-optimize toggle, SEO alt text toggle. Renders account tier + credits from a transient cache.
+- **Settings page** (`/wp-admin/options-general.php?page=tinify-ai`): API key, auto-optimize toggle, SEO alt text toggle, optimize thumbnails toggle, output format select (original/webp/avif/jpg/png), max dimensions inputs, resize behavior radios (pad/crop). Renders account tier + credits from a transient cache.
 - **Bulk Optimize page** (`/wp-admin/upload.php?page=tinify-ai-bulk`): queues all unoptimized attachments via AJAX, polls status every 3 s, shows a progress bar. Status counts are cached in a 2 s transient to rate-limit DB hits.
 - **Media Library column**: "tinify.ai" column shows savings %, processing state, or Optimize/Retry button per image.
 - **Attachment edit panel**: `attachment_submitbox_misc_actions` hook renders a panel with size stats and Re-optimize button.
 
-All AJAX handlers (`tinify_optimize_single`, `tinify_bulk_queue`, `tinify_bulk_status`) verify nonce `tinify_ajax` and capability `upload_files`.
+All AJAX handlers (`tinify_optimize_single`, `tinify_restore_original`, `tinify_bulk_queue`, `tinify_bulk_status`) verify nonce `tinify_ajax` and capability `upload_files`.
 
 ### Security
 
@@ -85,6 +87,25 @@ Tests use PHPUnit 10 + Brain\Monkey 2.6 (backed by Mockery) to mock WordPress fu
 `tests/bootstrap.php` defines the WP constants needed by the classes under test (`DAY_IN_SECONDS`, `AUTH_KEY`, etc.).
 
 The test suite is unit-only — no integration tests against a real database or WP install.
+
+## Gotchas
+
+**Poll timeout vs. retry — job_id semantics are opposite:**
+- `setStatus('pending')` clears `_tinify_job_id` so retries start from upload.
+- `PollTimeoutException` catch leaves status as `'processing'` and `job_id` intact. The next `Processor::run()` call sees `getJobId()` is non-null and skips upload+process, resuming from polling. Both exception types live in `src/Exception/`.
+
+**Re-entrant guard in `Scheduler::queueOnUpload()`:**
+- `Replacer::swap()` calls `wp_generate_attachment_metadata()` to regenerate thumbnails after replacing the file, which fires the same filter. The guard returns early if status is already `completed`/`processing`/`pending`.
+
+**`getimagesize()` skipped for SVG:**
+- `Replacer::swap()` only runs the image-integrity check on raster MIME types (jpeg/png/webp/gif/avif). `getimagesize()` returns false for SVG, so SVG is validated by MIME check only.
+
+**Backup file naming:** Original files are stored as `<original-path>.tinify-orig`. `uninstall.php` queries and deletes these before removing meta.
+
+**Debug: check ActionScheduler queue:**
+```
+/wp-admin/tools.php?page=action-scheduler&s=tinify_ai
+```
 
 ## Code standards
 
