@@ -33,6 +33,7 @@ class ReplacerTest extends TestCase
         Functions\expect('wp_upload_dir')->once()->andReturn(['basedir' => '/var/www/wp-content/uploads']);
         Functions\expect('get_attached_file')->once()->andReturn('/var/www/wp-content/uploads/photo.jpg');
         Functions\expect('wp_check_filetype_and_ext')->once()->andReturn(['type' => false, 'ext' => false]);
+        Functions\expect('wp_delete_file')->once();
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/MIME/i');

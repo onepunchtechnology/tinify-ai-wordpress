@@ -19,7 +19,9 @@
 
 declare(strict_types=1);
 
-if (!defined('ABSPATH')) exit;
+if ( ! defined('ABSPATH')) {
+	exit;
+}
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -29,5 +31,5 @@ require_once __DIR__ . '/vendor/woocommerce/action-scheduler/action-scheduler.ph
 define('TINIFY_AI_FILE', __FILE__);
 
 add_action('plugins_loaded', static function (): void {
-    (new \TinifyAI\Plugin())->init();
+	( new \TinifyAI\Plugin() )->init();
 });

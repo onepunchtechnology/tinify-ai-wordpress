@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<ruleset name="TinifyAI">
+    <description>TinifyAI WordPress Plugin — PSR-4 namespaced codebase with WP security rules</description>
+
+    <file>src/</file>
+    <file>tinify-ai.php</file>
+    <file>uninstall.php</file>
+
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <!-- Use WordPress Core rules (includes security: escaping, sanitization, nonces) -->
+    <rule ref="WordPress-Core"/>
+
+    <!-- Also enforce WordPress extra best practices -->
+    <rule ref="WordPress-Extra">
+        <!-- PSR-4 uses PascalCase filenames — skip file naming rules -->
+        <exclude name="WordPress.Files.FileName"/>
+
+        <!-- We use camelCase method/property names with namespaces -->
+        <exclude name="WordPress.NamingConventions.ValidFunctionName"/>
+        <exclude name="WordPress.NamingConventions.ValidVariableName"/>
+        <exclude name="WordPress.NamingConventions.ValidHookName"/>
+
+        <!-- PSR-12 brace style: opening brace on same line as class/function -->
+        <exclude name="PEAR.Functions.FunctionCallSignature"/>
+        <exclude name="Generic.Functions.OpeningFunctionBraceBsdAllman"/>
+        <exclude name="Generic.Classes.OpeningBraceSameLine"/>
+
+        <!-- Yoda conditions — not required for clarity in typed PHP 8.1 code -->
+        <exclude name="WordPress.PHP.YodaConditions"/>
+
+        <!-- Doc comments — not required per project style -->
+        <exclude name="Squiz.Commenting.FunctionComment"/>
+        <exclude name="Squiz.Commenting.ClassComment"/>
+        <exclude name="Squiz.Commenting.FileComment"/>
+        <exclude name="Squiz.Commenting.VariableComment"/>
+        <exclude name="Generic.Commenting.DocComment"/>
+
+        <!-- Space before/after parentheses — follow PSR-12 -->
+        <exclude name="WordPress.WhiteSpace.ControlStructureSpacing"/>
+    </rule>
+
+    <!-- Allow short array syntax [] — widely used in modern WP plugin development -->
+    <rule ref="Universal.Arrays.DisallowShortArraySyntax">
+        <exclude name="Universal.Arrays.DisallowShortArraySyntax.Found"/>
+    </rule>
+
+    <!-- Exception message strings are not HTML output — escaping them is wrong -->
+    <rule ref="WordPress.Security.EscapeOutput">
+        <exclude name="WordPress.Security.EscapeOutput.ExceptionNotEscaped"/>
+    </rule>
+
+    <!-- Enforce tabs for indentation (WordPress standard) -->
+    <rule ref="Generic.WhiteSpace.DisallowSpaceIndent"/>
+    <rule ref="Generic.WhiteSpace.ScopeIndent">
+        <properties>
+            <property name="indent" value="4"/>
+            <property name="tabIndent" value="true"/>
+        </properties>
+    </rule>
+</ruleset>
