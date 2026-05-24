@@ -1,0 +1,168 @@
+<?php
+declare(strict_types=1);
+namespace TinifyAI;
+
+class Settings
+{
+    public function register(): void
+    {
+        register_setting('tinify_ai', 'tinify_api_key',             ['sanitize_callback' => [$this, 'sanitizeApiKey']]);
+        register_setting('tinify_ai', 'tinify_auto_optimize',       ['sanitize_callback' => 'rest_sanitize_boolean']);
+        register_setting('tinify_ai', 'tinify_seo_alt_text',        ['sanitize_callback' => 'rest_sanitize_boolean']);
+        register_setting('tinify_ai', 'tinify_optimize_thumbnails', ['sanitize_callback' => 'rest_sanitize_boolean']);
+        register_setting('tinify_ai', 'tinify_pipeline_settings',   ['sanitize_callback' => [$this, 'sanitizePipelineSettings']]);
+
+        add_settings_section('tinify_main', '', '__return_empty_string', 'tinify_ai');
+        add_settings_field('tinify_api_key', esc_html__('API Key', 'tinify-ai'), [$this, 'renderApiKeyField'], 'tinify_ai', 'tinify_main');
+    }
+
+    public function sanitizeApiKey(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') return '';
+        if (!str_starts_with($trimmed, 'tfy_live_')) {
+            add_settings_error('tinify_ai', 'invalid_key', esc_html__('API key must start with tfy_live_', 'tinify-ai'));
+            return get_option('tinify_api_key', '');
+        }
+        return $this->encryptKey($trimmed);
+    }
+
+    public function sanitizePipelineSettings(array $input): array
+    {
+        return [
+            'output_format'          => in_array($input['output_format'] ?? '', ['original', 'jpg', 'png', 'webp', 'avif'], true)
+                                        ? $input['output_format'] : 'original',
+            'output_width'           => absint($input['output_width'] ?? 0) ?: null,
+            'output_height'          => absint($input['output_height'] ?? 0) ?: null,
+            'output_resize_behavior' => in_array($input['output_resize_behavior'] ?? '', ['pad', 'crop'], true)
+                                        ? $input['output_resize_behavior'] : 'pad',
+        ];
+    }
+
+    public function getApiKey(): ?string
+    {
+        $encrypted = get_option('tinify_api_key', '');
+        if ($encrypted === '') return null;
+        return $this->decryptKey($encrypted);
+    }
+
+    public function getPipelineSettings(): array
+    {
+        return get_option('tinify_pipeline_settings', [
+            'output_format'          => 'original',
+            'output_width'           => null,
+            'output_height'          => null,
+            'output_resize_behavior' => 'pad',
+        ]);
+    }
+
+    public function isAutoOptimize(): bool
+    {
+        return (bool) get_option('tinify_auto_optimize', true);
+    }
+
+    public function isSeoAltTextEnabled(): bool
+    {
+        return (bool) get_option('tinify_seo_alt_text', true);
+    }
+
+    public function isOptimizeThumbnails(): bool
+    {
+        return (bool) get_option('tinify_optimize_thumbnails', false);
+    }
+
+    public function renderPage(): void
+    {
+        $apiKey       = $this->getApiKey();
+        $hasKey       = $apiKey !== null;
+        $accountCache = get_transient('tinify_account_cache');
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('tinify.ai Settings', 'tinify-ai'); ?></h1>
+
+            <?php if (!$hasKey): ?>
+            <div class="notice notice-info">
+                <h3><?php esc_html_e('Getting started with tinify.ai', 'tinify-ai'); ?></h3>
+                <ol>
+                    <li><?php printf(esc_html__('Create a free account at %s', 'tinify-ai'), '<a href="https://tinify.ai/signup" target="_blank">tinify.ai/signup</a>'); ?></li>
+                    <li><?php esc_html_e('Go to Dashboard → API Keys → Generate New Key', 'tinify-ai'); ?></li>
+                    <li><?php esc_html_e('Name it "My WordPress Site" and copy the key', 'tinify-ai'); ?></li>
+                    <li><?php esc_html_e('Paste it below and click Save Settings', 'tinify-ai'); ?></li>
+                </ol>
+                <p><strong><?php esc_html_e('Pricing:', 'tinify-ai'); ?></strong>
+                    <?php printf(esc_html__('The WordPress plugin uses your existing %s subscription.', 'tinify-ai'), '<a href="https://tinify.ai/pricing" target="_blank">tinify.ai</a>'); ?>
+                </p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($hasKey && $accountCache): ?>
+            <div class="notice notice-success inline">
+                <p><?php printf(
+                    esc_html__('Connected — %s plan · %s credits remaining', 'tinify-ai'),
+                    esc_html(ucfirst($accountCache['tier'])),
+                    esc_html(number_format($accountCache['credits_remaining']))
+                ); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <form method="post" action="options.php">
+                <?php
+                settings_fields('tinify_ai');
+                do_settings_sections('tinify_ai');
+                ?>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th><?php esc_html_e('API Key', 'tinify-ai'); ?></th>
+                        <td>
+                            <input type="password" name="tinify_api_key"
+                                   value="<?php echo $hasKey ? 'tfy_live_••••••••••••' : ''; ?>"
+                                   class="regular-text" autocomplete="off"
+                                   placeholder="tfy_live_..." />
+                            <p class="description"><?php esc_html_e('Leave unchanged to keep your existing key.', 'tinify-ai'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php esc_html_e('Auto-optimize', 'tinify-ai'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="tinify_auto_optimize" value="1"
+                                    <?php checked($this->isAutoOptimize()); ?> />
+                                <?php esc_html_e('Optimize new image uploads automatically', 'tinify-ai'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php esc_html_e('SEO Alt Text', 'tinify-ai'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="tinify_seo_alt_text" value="1"
+                                    <?php checked($this->isSeoAltTextEnabled()); ?> />
+                                <?php esc_html_e('Write AI-generated alt text to image metadata', 'tinify-ai'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button(); ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    public function renderApiKeyField(): void {} // Handled in renderPage directly
+
+    private function encryptKey(string $plaintext): string
+    {
+        $keyMaterial = substr(hash('sha256', AUTH_KEY . SECURE_AUTH_KEY, true), 0, 32);
+        $iv          = random_bytes(16);
+        $encrypted   = openssl_encrypt($plaintext, 'AES-256-CBC', $keyMaterial, 0, $iv);
+        return base64_encode($iv . '::' . $encrypted);
+    }
+
+    private function decryptKey(string $stored): string
+    {
+        $decoded     = base64_decode($stored);
+        [$iv, $data] = explode('::', $decoded, 2);
+        $keyMaterial = substr(hash('sha256', AUTH_KEY . SECURE_AUTH_KEY, true), 0, 32);
+        return openssl_decrypt($data, 'AES-256-CBC', $keyMaterial, 0, $iv) ?: '';
+    }
+}
