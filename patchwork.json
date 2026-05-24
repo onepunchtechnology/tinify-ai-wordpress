@@ -1,0 +1,14 @@
+{
+  "redefinable-internals": [
+    "file_exists",
+    "filesize",
+    "file_put_contents",
+    "file_get_contents",
+    "mime_content_type",
+    "copy",
+    "rename",
+    "unlink",
+    "sleep",
+    "time"
+  ]
+}
