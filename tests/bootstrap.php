@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/../vendor/autoload.php';
+// Brain\Monkey::setUp() and tearDown() are called per-test in TestCase subclasses.
