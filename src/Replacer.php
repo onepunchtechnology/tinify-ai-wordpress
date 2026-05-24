@@ -35,6 +35,19 @@ class Replacer
 			throw new \RuntimeException('MIME validation failed: processed file is not an allowed image type');
 		}
 
+		// File-size guard: reject empty downloads (network truncation)
+		if (filesize($processedTmpPath) === 0) {
+			wp_delete_file($processedTmpPath);
+			throw new \RuntimeException('Downloaded file is empty (0 bytes)');
+		}
+
+		// Image-integrity guard: bitmap types must pass getimagesize()
+		$rasterMimes = [ 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif' ];
+		if (in_array($mimeCheck['type'], $rasterMimes, true) && getimagesize($processedTmpPath) === false) {
+			wp_delete_file($processedTmpPath);
+			throw new \RuntimeException('Downloaded file failed image integrity check');
+		}
+
 		// Create .tinify-orig backup before overwriting
 		$backupPath = $destPath . '.tinify-orig';
 		if ( ! file_exists($backupPath)) {

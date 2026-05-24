@@ -18,6 +18,17 @@ delete_transient('tinify_account_cache');
 delete_transient('tinify_credits_reset_at');
 delete_transient('tinify_bulk_status_cache');
 
+// Delete .tinify-orig backup files before removing the meta that points to them
+global $wpdb;
+$backup_paths = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+	"SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_tinify_orig_backup'"
+);
+foreach ($backup_paths as $backup_path) {
+	if ($backup_path && file_exists($backup_path)) {
+		wp_delete_file($backup_path);
+	}
+}
+
 // Delete all attachment post meta
 $meta_keys = [
 	'_tinify_status',

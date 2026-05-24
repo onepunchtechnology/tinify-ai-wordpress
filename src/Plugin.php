@@ -36,6 +36,7 @@ class Plugin
 		add_action('manage_media_custom_column', [ $mediaLibrary, 'renderStatusColumn' ], 10, 2);
 		add_action('attachment_submitbox_misc_actions', [ $mediaLibrary, 'renderAttachmentPanel' ]);
 		add_action('wp_ajax_tinify_optimize_single', [ $mediaLibrary, 'handleAjaxOptimizeSingle' ]);
+		add_action('wp_ajax_tinify_restore_original', [ $mediaLibrary, 'handleAjaxRestoreOriginal' ]);
 
 		// Bulk optimizer AJAX
 		$bulkOptimizer = new BulkOptimizer($this->meta, $this->scheduler, $this->settings, $this->api);
@@ -67,14 +68,18 @@ class Plugin
 	}
 
 	public function enqueueAssets( string $hook ): void {
-		if ( ! in_array($hook, [ 'upload.php', 'settings_page_tinify-ai', 'media_page_tinify-ai-bulk' ], true)) {
+		if ( ! in_array($hook, [ 'upload.php', 'post.php', 'settings_page_tinify-ai', 'media_page_tinify-ai-bulk' ], true)) {
+			return;
+		}
+		if ($hook === 'post.php' && get_post_type() !== 'attachment') {
 			return;
 		}
 		wp_enqueue_script('tinify-ai-admin', plugin_dir_url(TINIFY_AI_FILE) . 'assets/admin.js', [ 'jquery' ], '1.0.0', true);
 		wp_enqueue_style('tinify-ai-admin', plugin_dir_url(TINIFY_AI_FILE) . 'assets/admin.css', [], '1.0.0');
 		wp_localize_script('tinify-ai-admin', 'tinifyAi', [
-			'ajaxUrl' => admin_url('admin-ajax.php'),
-			'nonce'   => wp_create_nonce('tinify_ajax'),
+			'ajaxUrl'        => admin_url('admin-ajax.php'),
+			'nonce'          => wp_create_nonce('tinify_ajax'),
+			'restoreConfirm' => __('Restore the original unoptimized file? This cannot be undone.', 'tinify-ai'),
 		]);
 	}
 

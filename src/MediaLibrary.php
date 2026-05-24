@@ -56,10 +56,11 @@ class MediaLibrary
 		if ( ! $post || $post->post_type !== 'attachment') {
 			return;
 		}
-		$id       = $post->ID;
-		$status   = $this->meta->getStatus($id);
-		$origSize = get_post_meta($id, '_tinify_original_size', true);
-		$procSize = get_post_meta($id, '_tinify_processed_size', true);
+		$id         = $post->ID;
+		$status     = $this->meta->getStatus($id);
+		$origSize   = get_post_meta($id, '_tinify_original_size', true);
+		$procSize   = get_post_meta($id, '_tinify_processed_size', true);
+		$backupPath = get_post_meta($id, '_tinify_orig_backup', true);
 		?>
 		<div class="misc-pub-section tinify-panel">
 			<strong><?php esc_html_e('tinify.ai', 'tinify-ai'); ?></strong><br>
@@ -77,6 +78,12 @@ class MediaLibrary
 				<button class="button button-small tinify-optimize-single" data-id="<?php echo absint($id); ?>">
 					<?php esc_html_e('Re-optimize', 'tinify-ai'); ?>
 				</button>
+				<?php if ($backupPath && file_exists($backupPath)) : ?>
+				<br>
+				<button class="button button-small tinify-restore-original" data-id="<?php echo absint($id); ?>" style="margin-top:4px;">
+					<?php esc_html_e('Restore Original', 'tinify-ai'); ?>
+				</button>
+				<?php endif; ?>
 			<?php elseif (in_array($status, [ 'processing', 'pending' ], true)) : ?>
 				<?php esc_html_e('Status: Processing…', 'tinify-ai'); ?>
 			<?php else : ?>
@@ -103,5 +110,50 @@ class MediaLibrary
 		$this->scheduler->queue($attachmentId);
 
 		wp_send_json_success([ 'status' => 'queued' ]);
+	}
+
+	public function handleAjaxRestoreOriginal(): void {
+		check_ajax_referer('tinify_ajax', 'nonce');
+		if ( ! current_user_can('upload_files')) {
+			wp_die(-1);
+		}
+
+		$attachmentId = absint($_POST['attachment_id'] ?? 0);
+		if ( ! $attachmentId) {
+			wp_send_json_error('Invalid attachment ID');
+			return;
+		}
+
+		$backupPath = get_post_meta($attachmentId, '_tinify_orig_backup', true);
+		$destPath   = get_attached_file($attachmentId);
+
+		if ( ! $backupPath || ! $destPath || ! file_exists($backupPath)) {
+			wp_send_json_error('Backup not found');
+			return;
+		}
+
+		// Path guard: backup must be within uploads dir
+		$uploadsDir   = wp_upload_dir()['basedir'];
+		$uploads_real = realpath($uploadsDir);
+		$uploadsReal  = false !== $uploads_real ? $uploads_real : $uploadsDir;
+		$backup_real  = realpath($backupPath);
+		$backupReal   = false !== $backup_real ? $backup_real : $backupPath;
+		if ( ! str_starts_with($backupReal . DIRECTORY_SEPARATOR, $uploadsReal . DIRECTORY_SEPARATOR)) {
+			wp_send_json_error('Invalid backup path');
+			return;
+		}
+
+		if ( ! copy($backupPath, $destPath)) {
+			wp_send_json_error('Failed to restore backup');
+			return;
+		}
+
+		$this->meta->clearOptimizationData($attachmentId);
+		wp_delete_file($backupPath);
+
+		$metadata = wp_generate_attachment_metadata($attachmentId, $destPath);
+		wp_update_attachment_metadata($attachmentId, $metadata);
+
+		wp_send_json_success([ 'status' => 'restored' ]);
 	}
 }

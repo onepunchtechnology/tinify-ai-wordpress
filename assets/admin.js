@@ -20,6 +20,26 @@
         });
     });
 
+    // Restore original button
+    $(document).on('click', '.tinify-restore-original', function (e) {
+        e.preventDefault();
+        // eslint-disable-next-line no-alert
+        if ( ! window.confirm(tinifyAi.restoreConfirm)) { return; }
+        var btn = $(this);
+        var id  = btn.data('id');
+        btn.prop('disabled', true).text('Restoring…');
+
+        $.post(tinifyAi.ajaxUrl, {
+            action:        'tinify_restore_original',
+            nonce:         tinifyAi.nonce,
+            attachment_id: id,
+        }).done(function () {
+            btn.closest('.misc-pub-section').html('<em>Restored ✓ — refresh to see original</em>');
+        }).fail(function () {
+            btn.prop('disabled', false).text('Restore Original');
+        });
+    });
+
     // Bulk optimize page
     var bulkRunning = false;
     var pollInterval;

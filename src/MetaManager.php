@@ -12,6 +12,9 @@ class MetaManager
 
 	public function setStatus( int $attachmentId, string $status ): void {
 		update_post_meta($attachmentId, self::PREFIX . 'status', $status);
+		if ($status === 'pending') {
+			delete_post_meta($attachmentId, self::PREFIX . 'job_id');
+		}
 	}
 
 	public function getJobId( int $attachmentId ): ?string {
@@ -49,5 +52,21 @@ class MetaManager
 
 	public function setOrigBackup( int $attachmentId, string $backupPath ): void {
 		update_post_meta($attachmentId, self::PREFIX . 'orig_backup', $backupPath);
+	}
+
+	public function clearOptimizationData( int $attachmentId ): void {
+		$keys = [
+			self::PREFIX . 'status',
+			self::PREFIX . 'job_id',
+			self::PREFIX . 'original_size',
+			self::PREFIX . 'processed_size',
+			self::PREFIX . 'savings_pct',
+			self::PREFIX . 'optimized_at',
+			self::PREFIX . 'error',
+			self::PREFIX . 'orig_backup',
+		];
+		foreach ($keys as $key) {
+			delete_post_meta($attachmentId, $key);
+		}
 	}
 }

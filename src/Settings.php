@@ -17,8 +17,9 @@ class Settings
 
 	public function sanitizeApiKey( string $value ): string {
 		$trimmed = trim($value);
-		if ($trimmed === '') {
-			return '';
+		// Treat empty or masked placeholder as "no change" — keep existing encrypted value
+		if ($trimmed === '' || str_contains($trimmed, '•')) {
+			return get_option('tinify_api_key', '');
 		}
 		if ( ! str_starts_with($trimmed, 'tfy_live_')) {
 			add_settings_error('tinify_ai', 'invalid_key', esc_html__('API key must start with tfy_live_', 'tinify-ai'));
@@ -70,9 +71,10 @@ class Settings
 	}
 
 	public function renderPage(): void {
-		$apiKey       = $this->getApiKey();
-		$hasKey       = $apiKey !== null;
-		$accountCache = get_transient('tinify_account_cache');
+		$apiKey           = $this->getApiKey();
+		$hasKey           = $apiKey !== null;
+		$accountCache     = get_transient('tinify_account_cache');
+		$pipelineSettings = $this->getPipelineSettings();
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e('tinify.ai Settings', 'tinify-ai'); ?></h1>
@@ -151,6 +153,67 @@ class Settings
 							</label>
 						</td>
 					</tr>
+					<tr>
+						<th><?php esc_html_e('Optimize Thumbnails', 'tinify-ai'); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="tinify_optimize_thumbnails" value="1"
+									<?php checked($this->isOptimizeThumbnails()); ?> />
+								<?php esc_html_e('Also compress each thumbnail (~3 credits per size, default OFF)', 'tinify-ai'); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e('Output Format', 'tinify-ai'); ?></th>
+						<td>
+							<select name="tinify_pipeline_settings[output_format]">
+								<?php
+								$formats = [
+									'original' => esc_html__('Original format', 'tinify-ai'),
+									'webp'     => 'WebP',
+									'avif'     => 'AVIF',
+									'jpg'      => 'JPEG',
+									'png'      => 'PNG',
+								];
+								foreach ($formats as $fmt_val => $fmt_label) :
+									?>
+								<option value="<?php echo esc_attr($fmt_val); ?>"
+									<?php selected($pipelineSettings['output_format'], $fmt_val); ?>>
+									<?php echo esc_html($fmt_label); ?>
+								</option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e('Max Dimensions', 'tinify-ai'); ?></th>
+						<td>
+							<input type="number" name="tinify_pipeline_settings[output_width]"
+								value="<?php echo esc_attr($pipelineSettings['output_width'] ?? ''); ?>"
+								min="0" max="10000" style="width:80px" placeholder="W" />
+							&times;
+							<input type="number" name="tinify_pipeline_settings[output_height]"
+								value="<?php echo esc_attr($pipelineSettings['output_height'] ?? ''); ?>"
+								min="0" max="10000" style="width:80px" placeholder="H" />
+							<p class="description"><?php esc_html_e('Leave blank for no resize.', 'tinify-ai'); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e('Resize Behavior', 'tinify-ai'); ?></th>
+						<td>
+							<label>
+								<input type="radio" name="tinify_pipeline_settings[output_resize_behavior]"
+									value="pad" <?php checked($pipelineSettings['output_resize_behavior'], 'pad'); ?> />
+								<?php esc_html_e('Pad (letterbox)', 'tinify-ai'); ?>
+							</label>
+							&nbsp;&nbsp;
+							<label>
+								<input type="radio" name="tinify_pipeline_settings[output_resize_behavior]"
+									value="crop" <?php checked($pipelineSettings['output_resize_behavior'], 'crop'); ?> />
+								<?php esc_html_e('Crop (center)', 'tinify-ai'); ?>
+							</label>
+						</td>
+					</tr>
 				</table>
 				<?php submit_button(); ?>
 			</form>
@@ -168,8 +231,12 @@ class Settings
 	}
 
 	private function decryptKey( string $stored ): string {
-		$decoded     = base64_decode($stored); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
-		[$iv, $data] = explode('::', $decoded, 2);
+		$decoded = base64_decode($stored); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
+		$parts   = explode('::', $decoded, 2);
+		if (count($parts) < 2) {
+			return '';
+		}
+		[$iv, $data] = $parts;
 		$keyMaterial = substr(hash('sha256', AUTH_KEY . SECURE_AUTH_KEY, true), 0, 32);
 		$result      = openssl_decrypt($data, 'AES-256-CBC', $keyMaterial, 0, $iv);
 		return false !== $result ? $result : '';
