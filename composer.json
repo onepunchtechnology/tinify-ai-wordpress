@@ -1,7 +1,34 @@
 {
   "name": "tinifyai/tinify-ai",
-  "description": "tinify.ai for WordPress — AI image optimization",
+  "description": "WordPress plugin for tinify.ai — AI image optimization pipeline: upscale (Real-ESRGAN), resize, compress (TinyPNG), and auto-generate SEO alt text. Runs in background via ActionScheduler.",
   "type": "wordpress-plugin",
+  "keywords": [
+    "wordpress",
+    "wordpress-plugin",
+    "image-optimization",
+    "image-compression",
+    "webp",
+    "avif",
+    "tinypng",
+    "alt-text",
+    "seo",
+    "real-esrgan",
+    "ai",
+    "media-library"
+  ],
+  "homepage": "https://tinify.ai",
+  "support": {
+    "docs": "https://tinify.ai/docs",
+    "issues": "https://github.com/tinifyai/tinify-ai-wordpress/issues",
+    "source": "https://github.com/tinifyai/tinify-ai-wordpress"
+  },
+  "authors": [
+    {
+      "name": "tinify.ai",
+      "homepage": "https://tinify.ai",
+      "role": "Developer"
+    }
+  ],
   "license": "GPL-2.0-only",
   "minimum-stability": "stable",
   "require": {

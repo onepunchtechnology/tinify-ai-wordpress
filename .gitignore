@@ -1,0 +1,24 @@
+# Composer
+/vendor/
+composer.phar
+
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache/
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Claude Code / AI assistant context files
+.claude/settings.local.json
+CLAUDE.md
+AGENTS.md
+
+# WordPress test env (if added later)
+/tmp/wordpress/
+/tmp/wordpress-tests-lib/
